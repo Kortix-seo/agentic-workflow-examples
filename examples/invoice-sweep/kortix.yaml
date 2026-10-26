@@ -1,0 +1,42 @@
+# Example 2 — the same shape, fired by an event instead of a clock.
+#
+# A webhook trigger has no schedule. An external service POSTs to
+#
+#   POST /v1/webhooks/projects/{projectId}/{slug}
+#   X-Kortix-Signature: sha256=<hmac of the raw body>
+#
+# and the payload renders into the prompt. The GitHub-compatible
+# X-Hub-Signature-256 header works too, so a repo webhook needs no adapter.
+# `secret_env` names the project secret that signs it; a trigger without one is
+# rejected at validation, so there is no unauthenticated webhook to forget.
+#
+#   kortix ship
+#   ./scripts/sign_and_post.sh invoice-sweep event.json
+kortix_version: 2
+runtime: opencode
+
+sandbox:
+  default: python
+  templates:
+    - slug: python
+      image: python:3.12-slim
+      cpu: 2
+      memory: 4
+      disk: 20
+
+agents:
+  finance:
+    sandbox: python
+
+triggers:
+  - slug: invoice-sweep
+    type: webhook
+    agent: finance
+    secret_env: INVOICE_WEBHOOK_SECRET
+    session_mode: keyed
+    prompt: |
+      An invoice event arrived for {{ body.vendor }} ({{ body.amount }}).
+      Match it against the invoices already recorded in invoices.csv, add the
+      ones that are missing, and flag any row whose amount or vendor disagrees
+      with what we have. Open a change request with the diff and one line per
+      flagged row. Post nothing outside the repo.
