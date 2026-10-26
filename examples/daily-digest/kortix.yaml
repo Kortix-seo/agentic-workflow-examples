@@ -1,0 +1,38 @@
+# Example 1 — a scheduled agentic workflow, in one row.
+#
+# The trigger is the whole schedule. It names the agent that thinks, the sandbox
+# image the run boots from, the clock it fires on, and the prompt that becomes
+# the session's first message. Nothing about this workflow lives in a database
+# you cannot diff.
+#
+#   kortix ship                      # pushes this file; daily-digest is scheduled
+#   kortix triggers fire daily-digest # run it once by hand, now
+#   kortix cr                         # read the change request the run opened
+kortix_version: 2
+runtime: opencode
+
+sandbox:
+  default: python
+  templates:
+    - slug: python
+      image: python:3.12-slim
+      cpu: 2
+      memory: 4
+      disk: 20
+
+agents:
+  digest:
+    sandbox: python
+
+triggers:
+  - slug: daily-digest
+    type: cron
+    agent: digest
+    cron: "0 0 9 * * 1-5"
+    timezone: America/Los_Angeles
+    session_mode: fresh
+    prompt: |
+      Summarize yesterday's commits on main as a short digest, grouped by area,
+      and open a change request against main that adds the digest under
+      digests/YYYY-MM-DD.md. Do not touch anything else. If nothing landed
+      yesterday, say so in the digest instead of inventing work.
