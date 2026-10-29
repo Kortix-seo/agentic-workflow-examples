@@ -92,12 +92,16 @@ Both examples put the boundary in the file:
 
 ## Read more
 
-- [What an agentic workflow is, and where the run happens](https://agenticworkflowguide.com/what-is-an-agentic-workflow)
-- [Build one, step by step, from a single row](https://agenticworkflowguide.com/build-an-agentic-workflow)
-- [Agentic vs deterministic workflows: which work belongs in which](https://agenticworkflowguide.com/agentic-vs-deterministic-workflows)
-- [Four more finished examples, with what each run left behind](https://agenticworkflowguide.com/examples)
-- Kortix automations, the trigger semantics these files use: [https://kortix.com/automations](https://kortix.com/automations)
-- Kortix documentation: [https://kortix.com/docs](https://kortix.com/docs)
+These files show a workflow that runs; the guide beside them starts with the question the files leave
+open. [What an agentic workflow is](https://agenticworkflowguide.com/what-is-an-agentic-workflow) follows
+one run from its trigger to the person who merges the change, and says where the model decides and where
+the file does. From there, [building one from a single row](https://agenticworkflowguide.com/build-an-agentic-workflow)
+walks the same steps on your own repo, and [agentic vs deterministic workflows](https://agenticworkflowguide.com/agentic-vs-deterministic-workflows)
+draws the line for the work that should stay a fixed pipeline. [Four more finished examples](https://agenticworkflowguide.com/examples)
+show what each of those runs left behind on its branch.
+
+The trigger semantics these files use are documented at [kortix.com/automations](https://kortix.com/automations),
+and the rest of the platform at [kortix.com/docs](https://kortix.com/docs).
 
 ## Licence
 
