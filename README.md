@@ -1,6 +1,6 @@
 # Agentic workflow examples you can run and check
 
-Two runnable agentic workflows for **Kortix, the open-source AI Operating System** — each one a
+Two runnable agentic workflows for **Kortix, the open-source CompanyOS** — each one a
 `kortix.yaml` you can read in a minute, validate offline, ship with one command, and fire by hand
 before you trust it with a clock.
 
@@ -100,10 +100,10 @@ walks the same steps on your own repo, and [agentic vs deterministic workflows](
 draws the line for the work that should stay a fixed pipeline. [Four more finished examples](https://agenticworkflowguide.com/examples)
 show what each of those runs left behind on its branch.
 
-The trigger semantics these files use are documented at [kortix.com/automations](https://kortix.com/automations),
+The trigger semantics these files use are documented at [kortix.com/docs/developers#triggers-keys](https://kortix.com/docs/developers#triggers-keys),
 and the rest of the platform at [kortix.com/docs](https://kortix.com/docs).
 
 ## Licence
 
-The example files are yours to copy, edit and ship. Kortix itself is the open-source AI Operating
-System; see [kortix.com](https://kortix.com) for its licence and hosting options.
+The example files are yours to copy, edit and ship. Kortix itself is the open-source CompanyOS; see
+[kortix.com](https://kortix.com) for its licence and hosting options.
