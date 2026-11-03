@@ -11,18 +11,29 @@ five fields, a timezone that is not an IANA name, a webhook trigger with no
 secret to sign it, a trigger pointing at an agent that does not exist — before
 anything is pushed.
 
-The rules below are the ones https://kortix.com/automations and
-https://kortix.com/docs/project/manifest state:
+The rules below are the ones https://kortix.com/docs/developers (kortix.yaml
+reference, triggers keys) states:
 
-  * a trigger is `cron` or `webhook`, nothing else;
+  * the format has no version number: `kortix_version` is deprecated, and
+    `kortix_version: 2` is the older format `kortix validate --fix` converts;
+  * a trigger says what fires it with `on:` — a schedule (`cron`, `every` or
+    `at`), a `webhook`, or an App event — and what it runs with `run:`
+    (`agent`, `prompt`, `session`). The flat form (`type`, `agent`, `prompt`,
+    `cron`, `secret_env`, `session_mode`) still works, but `type` beside `on:`
+    is an error;
   * a cron expression has six fields — second, minute, hour, day, month,
-    weekday — in any IANA timezone, or `run_at` for a one-off;
-  * every webhook trigger names a project secret (`secret_env`); a trigger
-    without one is rejected at validation;
-  * `session_mode` is one of fresh, reuse, pinned, keyed, and the default is
-    fresh;
+    weekday — in any IANA timezone;
+  * every webhook trigger names a project secret (`on.webhook.secret`); a
+    trigger without one is rejected at validation, and a secret the file does
+    not declare under `env` is an error;
+  * `run.session` (or the flat `session_mode`) is one of fresh, reuse, pinned,
+    keyed, and the default is fresh; `pinned` needs `session_id`, `keyed`
+    takes a `session_key`;
   * a trigger names its agent and carries the prompt template that becomes the
-    session's first message.
+    session's first message;
+  * an agent that reads the repo or opens a change request sets
+    `workspace: { project_repository: true }` and holds
+    `kortix_permissions: [project.gitops.push]` — both are off by default.
 
 It reads YAML with PyYAML when it is installed and falls back to a small parser
 for the subset these manifests use (top-level maps, block lists of maps, block
@@ -37,7 +48,7 @@ import sys
 from pathlib import Path
 
 SESSION_MODES = {"fresh", "reuse", "pinned", "keyed"}
-TRIGGER_TYPES = {"cron", "webhook"}
+TRIGGER_TYPES = {"cron", "webhook", "app", "change_request"}
 SIX_FIELDS = re.compile(r"^\S+(\s+\S+){5}$")
 
 
@@ -107,6 +118,12 @@ def _mini_yaml(text: str) -> dict:
                 child: object = [] if nxt.strip().startswith("- ") else {}
                 container[key] = child
                 stack.append((indent, child))
+            elif value.startswith("[") and value.endswith("]"):
+                inner = value[1:-1].strip()
+                container[key] = (
+                    [_unquote(v) for v in inner.split(",") if v.strip()]
+                    if inner else []
+                )
             else:
                 container[key] = _unquote(value)
         i += 1
@@ -125,6 +142,69 @@ def load(path: Path) -> dict:
 # ── checks ────────────────────────────────────────────────────────────────
 
 
+def _triggers_of(doc: dict) -> list[dict]:
+    triggers = doc.get("triggers")
+    if triggers is None:
+        return []
+    if not isinstance(triggers, list):
+        raise ValueError("`triggers:` is not a list")
+    return [t for t in triggers if isinstance(t, dict)]
+
+
+def _key(trigger: dict, name: str):
+    """A trigger key. PyYAML reads the bare key `on` as boolean True (YAML 1.1),
+    so both spellings are accepted."""
+    if name in trigger:
+        return trigger[name]
+    if name == "on" and True in trigger:
+        return trigger[True]
+    return None
+
+
+def _parts(trigger: dict) -> dict:
+    """Read one trigger in either form: `on:`/`run:` or the flat form."""
+    on_raw = _key(trigger, "on")
+    on = on_raw if isinstance(on_raw, dict) else None
+    run_raw = _key(trigger, "run")
+    run = run_raw if isinstance(run_raw, dict) else None
+    if on is not None:
+        if "type" in trigger:
+            kind = "__type-beside-on__"
+        elif "webhook" in on:
+            kind = "webhook"
+        elif "app" in on:
+            kind = "app"
+        elif "cron" in on or "every" in on or "at" in on:
+            kind = "cron"
+        else:
+            kind = None
+        webhook = on.get("webhook") if isinstance(on.get("webhook"), dict) else {}
+        return {
+            "kind": kind,
+            "agent": (run or {}).get("agent"),
+            "prompt": (run or {}).get("prompt"),
+            "session": (run or {}).get("session", "fresh"),
+            "session_id": (run or {}).get("session_id"),
+            "session_key": (run or {}).get("session_key"),
+            "cron": on.get("cron") or on.get("every") or on.get("at"),
+            "is_cron": "cron" in on,
+            "timezone": on.get("timezone"),
+            "secret": webhook.get("secret"),
+        }
+    return {
+        "kind": trigger.get("type"),
+        "agent": trigger.get("agent"),
+        "prompt": trigger.get("prompt"),
+        "session": trigger.get("session_mode", "fresh"),
+        "session_id": trigger.get("session_id"),
+        "session_key": trigger.get("session_key"),
+        "cron": trigger.get("cron") or trigger.get("run_at"),
+        "is_cron": bool(trigger.get("cron")) or "run_at" in trigger,
+        "timezone": trigger.get("timezone"),
+        "secret": trigger.get("secret_env"),
+    }
+
+
 def check(path: Path) -> list[str]:
     problems: list[str] = []
     try:
@@ -135,8 +215,16 @@ def check(path: Path) -> list[str]:
     if not isinstance(doc, dict):
         return [f"{path}: the manifest is not a mapping"]
 
-    if "kortix_version" not in doc:
-        problems.append("`kortix_version` is missing")
+    if "kortix_version" in doc:
+        problems.append(
+            "`kortix_version` is deprecated: delete the line "
+            "(`kortix validate --fix` does it, and converts a `kortix_version: 2` file)")
+
+    declared_secrets = set()
+    env = doc.get("env") if isinstance(doc.get("env"), dict) else {}
+    for key in ("required", "optional"):
+        for name in env.get(key) or []:
+            declared_secrets.add(str(name))
 
     sandbox = doc.get("sandbox") or {}
     templates = sandbox.get("templates") or []
@@ -165,19 +253,16 @@ def check(path: Path) -> list[str]:
         elif slug not in slugs:
             problems.append(f"agent `{name}` uses undeclared sandbox `{slug}`")
 
-    triggers = doc.get("triggers")
-    if triggers is None:
+    try:
+        triggers = _triggers_of(doc)
+    except ValueError as exc:
+        return problems + [str(exc)]
+    if not triggers:
         problems.append("no `triggers:` block")
-        triggers = []
-    if not isinstance(triggers, list):
-        return problems + ["`triggers:` is not a list"]
 
     seen: set[str] = set()
     for index, trigger in enumerate(triggers, start=1):
         where = f"trigger #{index}"
-        if not isinstance(trigger, dict):
-            problems.append(f"{where} is not a mapping")
-            continue
         slug = trigger.get("slug")
         if not slug:
             problems.append(f"{where} has no `slug`")
@@ -187,33 +272,43 @@ def check(path: Path) -> list[str]:
             seen.add(slug)
             where = f"trigger `{slug}`"
 
-        kind = trigger.get("type")
-        if kind not in TRIGGER_TYPES:
-            problems.append(f"{where}: type `{kind}` is not one of {sorted(TRIGGER_TYPES)}")
+        part = _parts(trigger)
+        kind = part["kind"]
+        if kind == "__type-beside-on__":
+            problems.append(f"{where}: `type` beside `on:` is an error; drop `type`")
+        elif kind not in TRIGGER_TYPES:
+            problems.append(f"{where}: what fires it (`on:` or `type`) is not one of {sorted(TRIGGER_TYPES)}")
 
-        agent = trigger.get("agent")
+        agent = part["agent"]
         if not agent:
-            problems.append(f"{where} names no agent")
+            problems.append(f"{where} names no agent (`run.agent` or `agent`)")
         elif agent not in agents:
             problems.append(f"{where} runs as `{agent}`, which is not under `agents:`")
 
-        mode = trigger.get("session_mode", "fresh")
+        mode = part["session"]
         if mode not in SESSION_MODES:
-            problems.append(f"{where}: session_mode `{mode}` is not one of {sorted(SESSION_MODES)}")
+            problems.append(f"{where}: session `{mode}` is not one of {sorted(SESSION_MODES)}")
+        elif mode == "pinned" and not part["session_id"]:
+            problems.append(f"{where}: `pinned` needs `run.session_id`")
+        elif mode == "keyed" and not part["session_key"]:
+            problems.append(
+                f"{where}: `keyed` needs `run.session_key` (a key that renders "
+                "empty runs `fresh`)")
 
-        prompt = (trigger.get("prompt") or "").strip()
+        prompt = (part["prompt"] or "").strip()
         if not prompt:
             problems.append(f"{where} carries no prompt template")
 
         if kind == "cron":
-            cron = str(trigger.get("cron") or trigger.get("run_at") or "").strip()
+            cron = str(part["cron"] or "").strip()
+            is_cron = part.get("is_cron")
             if not cron:
-                problems.append(f"{where}: neither `cron` nor `run_at` is set")
-            elif "run_at" not in trigger and not SIX_FIELDS.match(cron):
+                problems.append(f"{where}: no `on.cron`, `on.every` or `on.at` is set")
+            elif is_cron and not SIX_FIELDS.match(cron):
                 problems.append(
                     f"{where}: `{cron}` is not six fields "
                     "(second, minute, hour, day, month, weekday)")
-            zone = trigger.get("timezone")
+            zone = part["timezone"]
             if not zone:
                 problems.append(f"{where}: a cron trigger needs a `timezone`")
             else:
@@ -223,10 +318,15 @@ def check(path: Path) -> list[str]:
                 except Exception:  # noqa: BLE001 - unknown zone is the finding
                     problems.append(f"{where}: `{zone}` is not an IANA timezone")
         elif kind == "webhook":
-            if not trigger.get("secret_env"):
+            secret = part["secret"]
+            if not secret:
                 problems.append(
-                    f"{where}: a webhook trigger needs `secret_env` naming the "
-                    "project secret that signs it")
+                    f"{where}: a webhook trigger needs the secret that signs it "
+                    "(`on.webhook.secret`)")
+            elif declared_secrets and secret not in declared_secrets:
+                problems.append(
+                    f"{where}: secret `{secret}` is not declared under `env:`")
+
     return problems
 
 
