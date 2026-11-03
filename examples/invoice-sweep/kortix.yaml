@@ -7,18 +7,21 @@
 #
 # and the payload renders into the prompt. The GitHub-compatible
 # X-Hub-Signature-256 header works too, so a repo webhook needs no adapter.
-# `secret_env` names the project secret that signs it; a trigger without one is
-# rejected at validation, so there is no unauthenticated webhook to forget.
+# `on.webhook.secret` names the project secret that signs it, and that name has
+# to be declared under `env`: a trigger without a secret is rejected at
+# validation, so there is no unauthenticated webhook to forget.
 #
 #   kortix ship
 #   ./scripts/sign_and_post.sh invoice-sweep event.json
-kortix_version: 2
-runtime: opencode
+
+env:
+  required: [INVOICE_WEBHOOK_SECRET]
 
 sandbox:
   default: python
   templates:
     - slug: python
+      name: Python 3.12
       image: python:3.12-slim
       cpu: 2
       memory: 4
@@ -26,17 +29,26 @@ sandbox:
 
 agents:
   finance:
+    description: Matches incoming invoices against the ones already recorded.
     sandbox: python
+    workspace: { project_repository: true }
+    kortix_permissions: [project.gitops.push]
 
 triggers:
   - slug: invoice-sweep
-    type: webhook
-    agent: finance
-    secret_env: INVOICE_WEBHOOK_SECRET
-    session_mode: keyed
-    prompt: |
-      An invoice event arrived for {{ body.vendor }} ({{ body.amount }}).
-      Match it against the invoices already recorded in invoices.csv, add the
-      ones that are missing, and flag any row whose amount or vendor disagrees
-      with what we have. Open a change request with the diff and one line per
-      flagged row. Post nothing outside the repo.
+    name: Invoice sweep
+    on:
+      webhook:
+        secret: INVOICE_WEBHOOK_SECRET
+    run:
+      agent: finance
+      # One session per vendor: a second invoice from the same vendor continues
+      # the session that matched the first, and a new vendor starts a fresh one.
+      session: keyed
+      session_key: "{{ body.vendor }}"
+      prompt: |
+        An invoice event arrived for {{ body.vendor }} ({{ body.amount }}).
+        Match it against the invoices already recorded in invoices.csv, add the
+        ones that are missing, and flag any row whose amount or vendor disagrees
+        with what we have. Open a change request with the diff and one line per
+        flagged row. Post nothing outside the repo.
