@@ -5,16 +5,15 @@
 # the session's first message. Nothing about this workflow lives in a database
 # you cannot diff.
 #
-#   kortix ship                      # pushes this file; daily-digest is scheduled
-#   kortix triggers fire daily-digest # run it once by hand, now
-#   kortix cr                         # read the change request the run opened
-kortix_version: 2
-runtime: opencode
+#   kortix ship                          # pushes this file; daily-digest is scheduled
+#   kortix triggers fire daily-digest     # run it once by hand, now
+#   kortix cr open --title "Daily digest" # read the change request the run opened
 
 sandbox:
   default: python
   templates:
     - slug: python
+      name: Python 3.12
       image: python:3.12-slim
       cpu: 2
       memory: 4
@@ -22,17 +21,23 @@ sandbox:
 
 agents:
   digest:
+    description: Writes yesterday's digest and opens a change request with it.
     sandbox: python
+    # The repo is what the run reads and what it proposes a change to. Both keys
+    # are off by default, and a run without them cannot do either.
+    workspace: { project_repository: true }
+    kortix_permissions: [project.gitops.push]
 
 triggers:
   - slug: daily-digest
-    type: cron
-    agent: digest
-    cron: "0 0 9 * * 1-5"
-    timezone: America/Los_Angeles
-    session_mode: fresh
-    prompt: |
-      Summarize yesterday's commits on main as a short digest, grouped by area,
-      and open a change request against main that adds the digest under
-      digests/YYYY-MM-DD.md. Do not touch anything else. If nothing landed
-      yesterday, say so in the digest instead of inventing work.
+    name: Daily digest
+    on:
+      cron: "0 0 9 * * 1-5"
+      timezone: America/Los_Angeles
+    run:
+      agent: digest
+      prompt: |
+        Summarize yesterday's commits on main as a short digest, grouped by area,
+        and open a change request against main that adds the digest under
+        digests/YYYY-MM-DD.md. Do not touch anything else. If nothing landed
+        yesterday, say so in the digest instead of inventing work.
