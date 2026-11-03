@@ -19,10 +19,11 @@ What makes it work:
   a digest run from becoming a refactor run at 09:00 on a Monday.
 - **An empty result is a result.** Naming the no-work case stops an agent from
   manufacturing a digest because the prompt implied one was owed.
-- **A cron fire renders `{{ cron.schedule }}`, `{{ cron.timezone }}` and
-  `{{ cron.scheduled_for }}`.** A prompt that wants to say when it is running
-  uses those rather than hard-coding a date.
+- **A webhook payload renders into the prompt.** `{{ body.vendor }}` and
+  `{{ body.amount }}` are read from the request body, and `run.session_key`
+  takes the same template, which is how a keyed trigger keeps one session per
+  vendor.
 
 Change it, ship it, and the next fire uses the new text: on Kortix, the
-open-source AI Operating System, the prompt is the file's content, not a field
-in a database.
+open-source CompanyOS, the prompt is the file's content, not a field in a
+database.
