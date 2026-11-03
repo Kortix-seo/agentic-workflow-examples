@@ -35,8 +35,12 @@ than a style opinion:
 
 - a cron expression that is not six fields (second, minute, hour, day, month, weekday);
 - a timezone that is not an IANA name;
-- a `webhook` trigger with no `secret_env`, which Kortix rejects at validation;
-- a `session_mode` outside `fresh`, `reuse`, `pinned`, `keyed`;
+- a `webhook` trigger with no secret to sign it (`on.webhook.secret`), or a secret the file never
+  declares under `env:`, either of which Kortix rejects at validation;
+- a `run.session` outside `fresh`, `reuse`, `pinned`, `keyed`, a `pinned` trigger with no
+  `run.session_id`, or a `keyed` one with no `run.session_key`;
+- a `type:` beside `on:`, which is an error in the current format, and a `kortix_version` line,
+  which is deprecated;
 - a trigger that runs as an agent the manifest never declares, or an agent pointing at an
   undeclared sandbox image.
 
@@ -70,8 +74,8 @@ render, does the agent find the repo, does the first tool call do what you meant
 own cloud computer, clones the repo into `/workspace`, and cuts a branch named after the session.
 Everything it writes lives on that branch and nowhere else.
 
-Then `kortix cr` opens the way back — a change request toward `main` that a person reads like a
-colleague's work. Merge is default-deny for agents, so a run cannot finish by putting its own work
+Then `kortix cr open --title "Daily digest"` opens the way back — a change request toward `main`
+that a person reads like a colleague's work. Merge is default-deny for agents, so a run cannot finish by putting its own work
 into `main` on its own authority.
 
 ## The part the screenshots leave out
@@ -85,10 +89,17 @@ Both examples put the boundary in the file:
   review at the end has something concrete to read.
 - **The empty case is written down.** "If nothing landed yesterday, say so instead of inventing
   work" is the sentence that keeps a quiet Monday from becoming a fabricated digest.
-- **The secret is named, not optional.** `secret_env` on the webhook trigger means there is no
-  unauthenticated webhook to forget to lock down later.
-- **A triggered session gets no privileges a person would not get,** and it stops itself after five
-  minutes idle, so a 03:00 run is not a machine billing until morning.
+- **The secret is named, not optional.** `on.webhook.secret` names it and `env:` declares it, so
+  there is no unauthenticated webhook to forget to lock down later.
+- **The two keys a demo leaves out.** `workspace: { project_repository: true }` is what puts the
+  repository in `/workspace`, and `kortix_permissions: [project.gitops.push]` is what lets the run
+  open the change request. Both are off when a manifest omits them, so an example without them
+  prints a digest into a machine that disappears.
+- **A triggered session gets no privileges a person would not get.** It holds the push permission
+  and nothing else, so it can open a change request and cannot merge one.
+- **The machine does not bill until morning.** About 15 to 20 minutes after the last turn, Kortix
+  stops the computer; it keeps `/workspace`, the branch and the conversation, and the next message
+  wakes it.
 
 ## Read more
 
