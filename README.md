@@ -15,6 +15,7 @@ change request a person reviews.
 |---|---|
 | [`examples/daily-digest/kortix.yaml`](examples/daily-digest/kortix.yaml) | A scheduled workflow: one `cron` trigger row, one agent, one sandbox image. Fires 09:00 on weekdays. |
 | [`examples/invoice-sweep/kortix.yaml`](examples/invoice-sweep/kortix.yaml) | The same shape fired by an event: a signed `webhook` trigger whose payload renders into the prompt. |
+| [`examples/github-agentic-workflow/`](examples/github-agentic-workflow/) | A GitHub agentic workflow (a `gh aw` markdown file compiled to a pinned Actions workflow) beside the same job as one `kortix.yaml` row, with no compile step. |
 | [`prompts/daily-digest.md`](prompts/daily-digest.md) | The prompt template a trigger carries, and why each sentence is in it. |
 | [`scripts/check_workflow.py`](scripts/check_workflow.py) | Offline check of a manifest against the rules Kortix states publicly. No dependencies. |
 | [`scripts/fire_and_read.sh`](scripts/fire_and_read.sh) | Fire a trigger by hand and read back what the run produced. |
@@ -26,8 +27,9 @@ change request a person reviews.
 $ python3 scripts/check_workflow.py examples/*/kortix.yaml
 ok   examples/daily-digest/kortix.yaml  (1 trigger(s), 1 agent(s))
 ok   examples/invoice-sweep/kortix.yaml  (1 trigger(s), 1 agent(s))
+ok   examples/github-agentic-workflow/kortix.yaml  (1 trigger(s), 1 agent(s))
 
-2 manifest(s) ok.
+3 manifest(s) ok.
 ```
 
 It catches the mistakes that are cheap to catch offline, each one a rule Kortix publishes rather
@@ -109,8 +111,7 @@ one run from its trigger to the person who merges the change, and says where the
 the file does. From there, [building one from a single row](https://agenticworkflowguide.com/build-an-agentic-workflow)
 walks the same steps on your own repo, and [agentic vs deterministic workflows](https://agenticworkflowguide.com/agentic-vs-deterministic-workflows)
 draws the line for the work that should stay a fixed pipeline. [Four more finished examples](https://agenticworkflowguide.com/examples)
-show what each of those runs left behind on its branch, and [GitHub agentic workflows](https://agenticworkflowguide.com/github-agentic-workflows)
-compares this file-first shape with the markdown files `gh aw compile` turns into a pinned Actions workflow.
+show what each of those runs left behind on its branch.
 
 The trigger semantics these files use are documented at [kortix.com/docs/developers#triggers-keys](https://kortix.com/docs/developers#triggers-keys),
 and the rest of the platform at [kortix.com/docs](https://kortix.com/docs).
