@@ -109,7 +109,8 @@ one run from its trigger to the person who merges the change, and says where the
 the file does. From there, [building one from a single row](https://agenticworkflowguide.com/build-an-agentic-workflow)
 walks the same steps on your own repo, and [agentic vs deterministic workflows](https://agenticworkflowguide.com/agentic-vs-deterministic-workflows)
 draws the line for the work that should stay a fixed pipeline. [Four more finished examples](https://agenticworkflowguide.com/examples)
-show what each of those runs left behind on its branch.
+show what each of those runs left behind on its branch, and [GitHub agentic workflows](https://agenticworkflowguide.com/github-agentic-workflows)
+compares this file-first shape with the markdown files `gh aw compile` turns into a pinned Actions workflow.
 
 The trigger semantics these files use are documented at [kortix.com/docs/developers#triggers-keys](https://kortix.com/docs/developers#triggers-keys),
 and the rest of the platform at [kortix.com/docs](https://kortix.com/docs).
