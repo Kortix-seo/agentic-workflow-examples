@@ -1,0 +1,44 @@
+# Example 3 — the same daily report as one row in kortix.yaml, with no compile step.
+#
+# GitHub Agentic Workflows compiles a markdown file into a pinned Actions workflow
+# (gh aw compile -> .lock.yml) and applies the agent's writes through declared
+# safe outputs. Here the file is the workflow: `kortix ship` validates it, commits
+# it and pushes it, and the row fires from there. The run opens a change request,
+# and a person reads the diff before it lands.
+#
+#   kortix ship                              # pushes this file; daily-repo-report is scheduled
+#   kortix triggers fire daily-repo-report    # run it once by hand, now
+#   kortix cr open --title "Daily report"     # read the change request the run opened
+
+sandbox:
+  default: python
+  templates:
+    - slug: python
+      name: Python 3.12
+      image: python:3.12-slim
+      cpu: 2
+      memory: 4
+      disk: 20
+
+agents:
+  reporter:
+    description: Writes yesterday's repository status report and opens a change request with it.
+    sandbox: python
+    # The repo is what the run reads and what it proposes a change to. Both keys
+    # are off by default, and a run without them cannot do either.
+    workspace: { project_repository: true }
+    kortix_permissions: [project.gitops.push]
+
+triggers:
+  - slug: daily-repo-report
+    name: Daily repository report
+    on:
+      cron: "0 0 8 * * *"
+      timezone: UTC
+    run:
+      agent: reporter
+      prompt: |
+        Read yesterday's commits on the default branch and the pull requests that
+        opened or closed in the last 24 hours. Write a short status report: what
+        merged, what is still open, and what is blocked, with the pull request
+        numbers. Save it as reports/daily.md and open a change request with it.
